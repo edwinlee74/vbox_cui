@@ -11,8 +11,10 @@ License: MIT
 Version: 19.03.01 (Calendar Versioning)
 '
 : ${backtitle="VirtualBox Command-line User Interface"}
+
 choice="/tmp/menu.choice.$$"
 output='/tmp/result.output.$$'
+os_list=(`VBoxManage list ostypes | grep "^ID:" | tr -d "ID:"`)
 
 # trap and delete temp file
 trap "rm $choice; rm $output; exit" 0 1 2 5 15
@@ -35,9 +37,45 @@ function MainMenu() {
         "$menu_title" $height $width $menu_height $menu_item1 $menu_item2 \
         $menu_item3 $menu_item4 $menu_item5 $menu_item6 2>"${choice}"
     
-    mychoice=$(<"${choice}")
+   mychoice=$(<"${choice}")
 }
 
+function ListOSType() {
+    for(( i=0; i<${#os_list[@]}; i++ ))
+      do
+        item=$i' '${os_list[i]}' off ' 
+        item_list=$item_list' '$item
+    done
+
+    local height=20
+    local width=50
+    local radiolist_height=10
+    exec 3>&1
+    os_choice=$(dialog --clear --radiolist "Select OS type:" $height $width \
+     $radiolist_height $item_list 2>&1 1>&3)
+    exec 3>&-
+}
+
+function CreateVM() {
+    # collect VM info
+    ListOSType
+    echo ${os_list[$os_choice]} > /tmp/os
+    exec 3>&1
+    local title="VM creation"
+    
+    VALUES=$(dialog --clear --ok-label "Submit" \
+	       --title "$title" \
+	       --form "[Input VM info]" \
+           15 50 0 \
+	       "VMname:" 1 1	"$vmname" 	1 10 10 0 \
+	       "Shell:"    2 1	"$shell"  	2 10 15 0 \
+	       "Group:"    3 1	"$groups"  	3 10 8 0 \
+	       "HOME:"     4 1	"$home" 	4 10 40 0 \
+           2>&1 1>&3
+    )
+    exec 3>&-
+    echo "$VALUES"
+}
 
 function Main() {
     while true
@@ -45,7 +83,8 @@ function Main() {
       MainMenu
       
       case $mychoice in 
-          6) echo "Bye"; break;;
+          1) CreateVM;;
+          6) echo "Have a nice day!"; break;;
       esac
     done
 }
