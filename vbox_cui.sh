@@ -12,15 +12,84 @@ Version: 19.03.01 (Calendar Versioning)
 '
 : ${backtitle="VirtualBox Command-line User Interface"}
 
-choice="/tmp/menu.choice.$$"
-output='/tmp/result.output.$$'
 os_list=(`VBoxManage list ostypes | grep "^ID:" | tr -d "ID:"`)
+for(( i=0; i<${#os_list[@]}; i++ ))
+   do
+     item=$i' '${os_list[i]}' off ' 
+     item_list=$item_list' '$item
+done
 
 # trap and delete temp file
-trap "rm $choice; rm $output; exit" 0 1 2 5 15
+#trap "rm $choice; rm $output; exit" 0 1 2 5 15
+
+function RadioList() {
+    local height=20
+    local width=50
+    local radiolist_height=10
+    exec 3>&1
+    os_choice=$(dialog --clear --radiolist "$1" $height $width \
+     $radiolist_height $2 2>&1 1>&3)
+    exec 3>&-
+}
+
+function FileSelect() {
+    FILE=$(dialog --stdout --title "$1" --fselect $HOME/ 14 48)
+}
+
+function CreateVM() {
+       # select an OS type
+       RadioList "Select OS type: " "$item_list"
+       
+       vmname=""
+       cpus=""
+       memory=""
+       harddisk=""
+       local title="VM creation"
+
+       exec 3>&1
+
+       VALUES=$(dialog --ok-label "Submit" \
+          --title "$title" \
+          --form "Input VM info" \
+       15 50 0 \
+        "VMname:" 1 1   "$vmname"       1 12 10 0 \
+        "CPUs:"    2 1  "$cpus"         2 12 15 0 \
+        "Memory(MB):"  3 1 "$memory"    3 12 8 0 \
+        "H.D(MB):"  4 1 "$harddisk"    4 12 8 0 \
+       2>&1 1>&3)
+
+       exec 3>&-
+
+       FileSelect "Please choose ISO source:"
+
+       vmname=`echo "$VALUES" | sed -n 1p`
+       cpus=`echo "$VALUES" | sed -n 2p`
+       memory=`echo "$VALUES" | sed -n 3p`
+       harddisk=`echo "$VALUES" | sed -n 4p`
+       ostype=`echo ${os_list[os_choice]}`
+       mediapath=`echo $FILE`
+       nic1=`ifconfig | grep "flags" | grep -v "lo:" | awk '{print $1}' | tr -d ':'`
+       
+       # beging to create virtualbox VM
+       VBoxManage createvm --name $vmname --ostype "$ostype" --register
+       VBoxManage createhd --filename ~/VirtualBox\ VMs/$vmname/$vmname.vdi --size $harddisk
+       VBoxManage storagectl $vmname --name "SATA Controller" --add sata \
+       --controller IntelAHCI
+       VBoxManage storageattach $vmname --storagectl "SATA Controller" --port 0 \
+       --device 0 --type hdd --medium ~/VirtualBox\ VMs/$vmname/$vmname.vdi
+       VBoxManage storagectl $vmname --name "IDE Controller" --add ide
+       VBoxManage storageattach $vmname --storagectl "IDE Controller" --port 0 \
+       --device 0 --type dvddrive --medium $mediapath
+       VBoxManage modifyvm $vmname --ioapic on
+       VBoxManage modifyvm $vmname --boot1 dvd --boot2 disk --boot3 none --boot4 none
+       VBoxManage modifyvm $vmname --memory $memory --vram 128
+       VBoxManage modifyvm $vmname --nic1 bridged --bridgeadapter1 $nic1
+
+}
 
 # display main menu
 function MainMenu() {
+    mychoice=""
     local title="[VirtualBox task menu]"
     local menu_title="Choose one:"
     local height=20
@@ -32,50 +101,16 @@ function MainMenu() {
     local menu_item4="4 虛擬機器快照"
     local menu_item5="5 啟動虛擬機器"
     local menu_item6="6 離開"
-
-   dialog  --clear --backtitle "$backtitle" --title "$title" --menu \
+    
+   exec 3>&1 
+   mychoice=$(dialog  --clear --backtitle "$backtitle" --title "$title" --menu \
         "$menu_title" $height $width $menu_height $menu_item1 $menu_item2 \
-        $menu_item3 $menu_item4 $menu_item5 $menu_item6 2>"${choice}"
-    
-   mychoice=$(<"${choice}")
+        $menu_item3 $menu_item4 $menu_item5 $menu_item6 2>&1 1>&3)
+   exec 3>&-
 }
 
-function ListOSType() {
-    for(( i=0; i<${#os_list[@]}; i++ ))
-      do
-        item=$i' '${os_list[i]}' off ' 
-        item_list=$item_list' '$item
-    done
 
-    local height=20
-    local width=50
-    local radiolist_height=10
-    exec 3>&1
-    os_choice=$(dialog --clear --radiolist "Select OS type:" $height $width \
-     $radiolist_height $item_list 2>&1 1>&3)
-    exec 3>&-
-}
 
-function CreateVM() {
-    # collect VM info
-    ListOSType
-    echo ${os_list[$os_choice]} > /tmp/os
-    exec 3>&1
-    local title="VM creation"
-    
-    VALUES=$(dialog --clear --ok-label "Submit" \
-	       --title "$title" \
-	       --form "[Input VM info]" \
-           15 50 0 \
-	       "VMname:" 1 1	"$vmname" 	1 10 10 0 \
-	       "Shell:"    2 1	"$shell"  	2 10 15 0 \
-	       "Group:"    3 1	"$groups"  	3 10 8 0 \
-	       "HOME:"     4 1	"$home" 	4 10 40 0 \
-           2>&1 1>&3
-    )
-    exec 3>&-
-    echo "$VALUES"
-}
 
 function Main() {
     while true
