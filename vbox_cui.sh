@@ -27,7 +27,7 @@ function RadioList() {
     local width=50
     local radiolist_height=10
     exec 3>&1
-    os_choice=$(dialog --clear --radiolist "$1" $height $width \
+    rl_choice=$(dialog --clear --radiolist "$1" $height $width \
      $radiolist_height $2 2>&1 1>&3)
     exec 3>&-
 }
@@ -66,13 +66,15 @@ function CreateVM() {
        cpus=`echo "$VALUES" | sed -n 2p`
        memory=`echo "$VALUES" | sed -n 3p`
        harddisk=`echo "$VALUES" | sed -n 4p`
-       ostype=`echo ${os_list[os_choice]}`
+       ostype=`echo ${os_list[rl_choice]}`
        mediapath=`echo $FILE`
-       nic1=`ifconfig | grep "flags" | grep -v "lo:" | awk '{print $1}' | tr -d ':'`
+       nic1=`ifconfig | grep "flags" | grep -v "lo:" | \
+             awk '{print $1}' | tr -d ':'`
        
        # beging to create virtualbox VM
        VBoxManage createvm --name $vmname --ostype "$ostype" --register
-       VBoxManage createhd --filename ~/VirtualBox\ VMs/$vmname/$vmname.vdi --size $harddisk
+       VBoxManage createhd --filename ~/VirtualBox\ VMs/$vmname/$vmname.vdi \
+       --size $harddisk
        VBoxManage storagectl $vmname --name "SATA Controller" --add sata \
        --controller IntelAHCI
        VBoxManage storageattach $vmname --storagectl "SATA Controller" --port 0 \
@@ -81,10 +83,40 @@ function CreateVM() {
        VBoxManage storageattach $vmname --storagectl "IDE Controller" --port 0 \
        --device 0 --type dvddrive --medium $mediapath
        VBoxManage modifyvm $vmname --ioapic on
-       VBoxManage modifyvm $vmname --boot1 dvd --boot2 disk --boot3 none --boot4 none
+       VBoxManage modifyvm $vmname --boot1 dvd --boot2 disk --boot3 none \
+       --boot4 none
        VBoxManage modifyvm $vmname --memory $memory --vram 128
        VBoxManage modifyvm $vmname --nic1 bridged --bridgeadapter1 $nic1
 
+}
+
+function ListVM() {
+      true
+}
+
+function ConfigVM() {
+      true
+}
+
+function SnapshotVM() {
+      true
+}
+
+function StartVM() {
+     get_vm_list=(`VBoxManage list vms | awk '{print $1}'`)
+     vm_item=""
+     vm_list=""
+     for(( i=0; i<${#get_vm_list[@]}; i++ ))
+       do
+          vm_item=$i' '${get_vm_list[i]}' off ' 
+          vm_list=$vm_list' '$vm_item
+     done 
+     echo $vm_list > /tmp/list
+     RadioList "Select a VM to start:" "$vm_list"
+
+     vm_choice=`echo ${get_vm_list[$rl_choice]} | tr -d '"'`
+     (VBoxHeadless -s ${vm_choice} -v on -e "TCP/Ports=2034" &) | echo -ne "\n"
+     
 }
 
 # display main menu
@@ -119,6 +151,10 @@ function Main() {
       
       case $mychoice in 
           1) CreateVM;;
+          2) true;;
+          3) true;;
+          4) true;;
+          5) StartVM;;
           6) echo "Have a nice day!"; break;;
       esac
     done
