@@ -11,8 +11,9 @@ License: MIT
 Version: 19.03.01 (Calendar Versioning)
 '
 : ${backtitle="VirtualBox Command-line User Interface"}
-
+snapshot_record='snapshot.record'
 os_list=(`VBoxManage list ostypes | grep "^ID:" | tr -d "ID:"`)
+
 for(( i=0; i<${#os_list[@]}; i++ ))
    do
      item=$i' '${os_list[i]}' off ' 
@@ -34,6 +35,17 @@ function RadioList() {
 
 function FileSelect() {
     FILE=$(dialog --stdout --title "$1" --fselect $HOME/ 14 48)
+}
+
+function GetVMList() {
+       get_vm_list=(`VBoxManage list vms | awk '{print $1}'`)
+       vm_item=""
+       vm_list=""
+       for(( i=0; i<${#get_vm_list[@]}; i++ ))
+         do
+            vm_item=$i' '${get_vm_list[i]}' off ' 
+            vm_list=$vm_list' '$vm_item
+       done
 }
 
 function CreateVM() {
@@ -99,7 +111,29 @@ function ConfigVM() {
 }
 
 function SnapshotVM() {
-      true
+     GetVMList
+     RadioList  "Select a VM for snapshot:" "$vm_list"
+     snapshotname=''
+     snapshotname=`date +%s`
+     vm_choice=`echo ${get_vm_list[$rl_choice]} | tr -d '"'`
+     VBoxManage snapshot ${vm_choice} take $snapshotname
+     echo $vm_choice'='$snapshotname >> $snapshot_record
+}
+
+function SnapshotRestore() {
+     GetVMList
+     RadioList  "Select a VM for restore:" "$vm_list"
+     vm_choice=`echo ${get_vm_list[$rl_choice]} | tr -d '"'`
+     get_snapshot_list=(`cat snapshot.record |grep ${vm_choice} | cut -d '=' -f2`)
+     snapshot_item=""
+     snapshot_list=""
+     for(( i=0; i<${#get_snapshot_list[@]}; i++ ))
+        do
+           snapshot_item=$i' '${get_snapshot_list[i]}' off ' 
+           snapshot_list=$snapshot_list' '$snapshot_item
+     done
+     RadioList "Select a snapshot to restore:" "$snapshot_list"
+     VBoxManage snapshot ${vm_choice} restore ${get_snapshot_list[$rl_choice]}
 }
 
 function StartVM() {
@@ -110,8 +144,8 @@ function StartVM() {
        do
           vm_item=$i' '${get_vm_list[i]}' off ' 
           vm_list=$vm_list' '$vm_item
-     done 
-     echo $vm_list > /tmp/list
+     done
+
      RadioList "Select a VM to start:" "$vm_list"
 
      vm_choice=`echo ${get_vm_list[$rl_choice]} | tr -d '"'`
@@ -126,18 +160,19 @@ function MainMenu() {
     local menu_title="Choose one:"
     local height=20
     local width=50
-    local menu_height=6
+    local menu_height=8
     local menu_item1="1 建立虛擬機器"
     local menu_item2="2 虛擬機器清單"
     local menu_item3="3 虛擬機器配置"
-    local menu_item4="4 虛擬機器快照"
-    local menu_item5="5 啟動虛擬機器"
-    local menu_item6="6 離開"
+    local menu_item4="4 虛擬機器快照建立"
+    local menu_item5="5 虛擬機器快照回復"
+    local menu_item6="6 啟動虛擬機器"
+    local menu_item7="7 離開"
     
    exec 3>&1 
    mychoice=$(dialog  --clear --backtitle "$backtitle" --title "$title" --menu \
         "$menu_title" $height $width $menu_height $menu_item1 $menu_item2 \
-        $menu_item3 $menu_item4 $menu_item5 $menu_item6 2>&1 1>&3)
+        $menu_item3 $menu_item4 $menu_item5 $menu_item6 $menu_item7 2>&1 1>&3)
    exec 3>&-
 }
 
@@ -153,9 +188,10 @@ function Main() {
           1) CreateVM;;
           2) true;;
           3) true;;
-          4) true;;
-          5) StartVM;;
-          6) echo "Have a nice day!"; break;;
+          4) SnapshotVM;;
+          5) SnapshotRestore;;
+          6) StartVM;;
+          7) echo "Have a nice day!"; break;;
       esac
     done
 }
