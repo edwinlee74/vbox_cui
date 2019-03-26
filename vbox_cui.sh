@@ -103,6 +103,7 @@ function CreateVM() {
 }
 
 function ListVM() {
+     vm_list=""
      GetVMList
      RadioList  "Select a VM to config:" "$vm_list"
      vm_choice=`echo ${get_vm_list[$rl_choice]} | tr -d '"'`
@@ -111,6 +112,7 @@ function ListVM() {
 }
 
 function ConfigVM() {
+     vm_list=""
      GetVMList
      RadioList  "Select a VM to config:" "$vm_list"
      vm_choice=`echo ${get_vm_list[$rl_choice]} | tr -d '"'`
@@ -137,6 +139,7 @@ function ConfigVM() {
 }
 
 function SnapshotVM() {
+     vm_list=""
      GetVMList
      RadioList  "Select a VM for snapshot:" "$vm_list"
      snapshotname=''
@@ -147,6 +150,7 @@ function SnapshotVM() {
 }
 
 function SnapshotRestore() {
+     vm_list=""
      GetVMList
      RadioList  "Select a VM for restore:" "$vm_list"
      vm_choice=`echo ${get_vm_list[$rl_choice]} | tr -d '"'`
@@ -188,6 +192,7 @@ function StartVM() {
 }
 
 function GuestAdditions() {
+     vm_list=""
      GetVMList
      RadioList  "Select a VM to install guest additions:" "$vm_list"
      vm_choice=`echo ${get_vm_list[$rl_choice]} | tr -d '"'`
