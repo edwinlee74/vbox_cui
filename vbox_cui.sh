@@ -103,11 +103,37 @@ function CreateVM() {
 }
 
 function ListVM() {
-      true
+     GetVMList
+     RadioList  "Select a VM to config:" "$vm_list"
+     vm_choice=`echo ${get_vm_list[$rl_choice]} | tr -d '"'`
+     ip=`VBoxManage guestproperty get "$vm_choice" "/VirtualBox/GuestInfo/Net/0/V4/IP"`
+      dialog --clear --msgbox "$ip" 10 20
 }
 
 function ConfigVM() {
-      true
+     GetVMList
+     RadioList  "Select a VM to config:" "$vm_list"
+     vm_choice=`echo ${get_vm_list[$rl_choice]} | tr -d '"'`
+     
+     cpus=""
+     memory=""
+     vram=""
+     exec 3>&1
+     VALUES=$(dialog --ok-label "Submit" \
+          --title "$title" \
+          --form "Input VM info" \
+       15 50 0 \
+        "CPUs:"    1 1  "$cpus"         1 12 15 0 \
+        "Memory(MB):"  2 1 "$memory"    2 12 8 0 \
+        "vram(MB):"  3 1 "$vram"    3 12 8 0 \
+       2>&1 1>&3)
+
+     exec 3>&-
+     cpus=`echo "$VALUES" | sed -n 1p`
+     memory=`echo "$VALUES" | sed -n 2p`
+     vram=`echo "$VALUES" | sed -n 3p`
+
+     VBoxManage modifyvm $vm_choice --cpus $cpus --memory $memory --vram $vram
 }
 
 function SnapshotVM() {
@@ -149,8 +175,27 @@ function StartVM() {
      RadioList "Select a VM to start:" "$vm_list"
 
      vm_choice=`echo ${get_vm_list[$rl_choice]} | tr -d '"'`
-     (VBoxHeadless -s ${vm_choice} -v on -e "TCP/Ports=2034" &) | echo -ne "\n"
+     dialog --clear --yesno "Do you want to enable rdp?" 10 20
+     enable_rdp=`echo $?`
+     if [ $enable_rdp == 0 ]
+        then
+          rdp='-v on'
+     else
+          rdp='-v off'
+     fi
+     (VBoxHeadless -s ${vm_choice} $rdp &) | echo -ne "\n"
      
+}
+
+function GuestAdditions() {
+     GetVMList
+     RadioList  "Select a VM to install guest additions:" "$vm_list"
+     vm_choice=`echo ${get_vm_list[$rl_choice]} | tr -d '"'`
+     
+     # you have to mount cd rom from guest os by manually.
+     VBoxManage storageattach $vm_choice --storagectl "IDE Controller" --port 0 \
+       --device 0 --type dvddrive --medium /usr/share/virtualbox/VBoxGuestAdditions.iso
+
 }
 
 # display main menu
@@ -162,17 +207,18 @@ function MainMenu() {
     local width=50
     local menu_height=8
     local menu_item1="1 建立虛擬機器"
-    local menu_item2="2 虛擬機器清單"
+    local menu_item2="2 虛擬機器IP"
     local menu_item3="3 虛擬機器配置"
     local menu_item4="4 虛擬機器快照建立"
     local menu_item5="5 虛擬機器快照回復"
     local menu_item6="6 啟動虛擬機器"
-    local menu_item7="7 離開"
+    local menu_item7="7 安裝guest_additions"
+    local menu_item8="8 離開"
     
    exec 3>&1 
    mychoice=$(dialog  --clear --backtitle "$backtitle" --title "$title" --menu \
         "$menu_title" $height $width $menu_height $menu_item1 $menu_item2 \
-        $menu_item3 $menu_item4 $menu_item5 $menu_item6 $menu_item7 2>&1 1>&3)
+        $menu_item3 $menu_item4 $menu_item5 $menu_item6 $menu_item7 $menu_item8 2>&1 1>&3)
    exec 3>&-
 }
 
@@ -186,12 +232,13 @@ function Main() {
       
       case $mychoice in 
           1) CreateVM;;
-          2) true;;
-          3) true;;
+          2) ListVM;;
+          3) ConfigVM;;
           4) SnapshotVM;;
           5) SnapshotRestore;;
           6) StartVM;;
-          7) echo "Have a nice day!"; break;;
+          7) GuestAdditions;;
+          8) echo "Have a nice day!"; break;;
       esac
     done
 }
